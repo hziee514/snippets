@@ -11,6 +11,36 @@ publishing {
             artifactId = project.name
             artifact sourceJar
             artifact("$buildDir/outputs/aar/${project.name}-release.aar")
+
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+
+                ext.addDependency = {Dependency dep, String scope ->
+                    if (dep.group == null || dep.version == null
+                            || dep.name == null || "unspecified" == dep.name)
+                        return
+                    def dependency = dependenciesNode.appendNode('dependency')
+                    dependency.appendNode('groupId', dep.group)
+                    dependency.appendNode('artifactId', dep.name)
+                    dependency.appendNode('version', dep.version)
+                    dependency.appendNode('scope', scope)
+                    if (!dep.transitive) {
+                        final exclusion = dependency.appendNode('exclusions').appendNode('exclusion')
+                        exclusion.appendNode('groupId', '*')
+                        exclusion.appendNode('artifactId', '*')
+                    } else if (!dep.properties.excludeRules.empty) {
+                        final exclusion = dependency.appendNode('exclusions').appendNode('exclusion')
+                        dep.properties.excludeRules.each { ExcludeRule rule ->
+                            exclusion.appendNode('groupId', rule.group ?: '*')
+                            exclusion.appendNode('artifactId', rule.module ?: '*')
+                        }
+                    }
+                }
+
+                configurations.compile.getDependencies().each { dep -> addDependency(dep, "compile") }
+                configurations.api.getDependencies().each { dep -> addDependency(dep, "compile") }
+                configurations.implementation.getDependencies().each { dep -> addDependency(dep, "runtime") }
+            }
         }
     }
     repositories {
